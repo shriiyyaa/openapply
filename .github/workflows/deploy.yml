@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # npm install, not npm ci: Windows-generated lockfiles omit the wasm-fallback
+      # optional deps (@emnapi/*) that Linux resolution requires, so ci always fails.
+      - run: npm install
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
