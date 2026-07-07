@@ -194,7 +194,7 @@ export default function JobsScreen({
                     {job.url && (
                       <>
                         {' · '}
-                        <a href={job.url} target="_blank" rel="noreferrer" className="text-emerald-700 underline">
+                        <a href={job.url} target="_blank" rel="noreferrer" className="text-violet-700 underline">
                           posting ↗
                         </a>
                       </>

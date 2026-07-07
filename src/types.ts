@@ -1,4 +1,4 @@
-export type Provider = 'gemini' | 'anthropic'
+export type Provider = 'puter' | 'gemini' | 'anthropic'
 
 export interface Settings {
   provider: Provider

@@ -25,3 +25,12 @@ User decision: no manual "confirm this skill" chips. Every tailor run automatica
 
 ## D8 — Honest ATS score (2026-07-07)
 The score reflects real fit after alignment. A low score tells the user the fit is weak — we don't inflate to flatter, because wasted applications are the user's cost, not ours.
+
+## D9 — Zero-setup AI via Puter.js, BYO keys demoted to power mode (2026-07-07)
+User feedback: the API-key onboarding was the #1 friction. Default provider is now Puter.js — keyless free AI (script loaded on first use; user signs into a free Puter account in a popup; their "user pays" model gives each user a free allowance). Gemini/Claude BYO keys remain as opt-in power mode. Trade-off accepted: dependency on a third-party free service; mitigated by the BYO fallback path and defensive response parsing.
+
+## D10 — Bulk one-tap capped at 10, sequential (2026-07-07)
+Batch processing in Search runs jobs one at a time (free-tier AI rate limits; each job lands in the tracker as it finishes so a mid-run failure loses nothing) and caps selection at 10 per batch to keep runs bounded.
+
+## D11 — Brand: violet/indigo gradient, green reserved for success semantics (2026-07-07)
+Visual identity after "too plain" feedback: violet→indigo gradients for brand/actions (buttons, nav, links, focus rings), emerald kept only for success states (checkmarks, matched keywords, positive badges).

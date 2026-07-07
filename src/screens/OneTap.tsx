@@ -1,30 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import type { InterviewQuestion, Job, Profile, Settings, TailorResult } from '../types'
-import { uid } from '../lib/storage'
-import { generateJson } from '../lib/llm'
-import { INTERVIEW_QUESTIONS_SYSTEM, JOB_PARSE_SYSTEM, TAILOR_SYSTEM } from '../lib/prompts'
+import type { Job, Profile, Settings } from '../types'
+import { runOneTapPipeline, type PipelineStep, type StepState } from '../lib/pipeline'
+import { isKeyless } from '../lib/llm'
 import { Badge, Button, Card, ErrorNote, SectionTitle, textareaCls } from '../components/ui'
 
-type StepState = 'pending' | 'running' | 'done' | 'failed'
-
-interface Steps {
-  parse: StepState
-  save: StepState
-  tailor: StepState
-  interview: StepState
-}
+type Steps = Record<PipelineStep, StepState>
 
 const IDLE: Steps = { parse: 'pending', save: 'pending', tailor: 'pending', interview: 'pending' }
-
-const normalizeUrl = (u: string) =>
-  u.trim().toLowerCase().replace(/\/+$/, '').replace(/^https?:\/\//, '').replace(/^www\./, '')
 
 function StepRow({ label, state, detail }: { label: string; state: StepState; detail?: string }) {
   const icon =
     state === 'done' ? (
       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">✓</span>
     ) : state === 'running' ? (
-      <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600" />
+      <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-violet-600" />
     ) : state === 'failed' ? (
       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">✕</span>
     ) : (
@@ -90,82 +79,23 @@ export default function OneTapScreen({
     const url = urlArg ?? urlInput
     setError('')
     setDoneJob(null)
-    if (!settings.apiKey) {
-      setError('Add your free API key in Settings first.')
+    if (!isKeyless(settings.provider) && !settings.apiKey) {
+      setError('Add your API key in Settings first (or switch to the free no-key option).')
       return
     }
-    if (!profile.resumeText.trim()) {
-      setError('Add your master resume in Profile first — everything is grounded in it.')
-      return
-    }
-    if (!posting.trim()) {
-      setError('Paste the job posting text first.')
-      return
-    }
-    if (url.trim() && jobs.some((j) => j.url && normalizeUrl(j.url) === normalizeUrl(url))) {
-      setError('Duplicate blocked: you already processed a job with this URL. (This guard is the point — no tool should apply twice to one posting.)')
-      return
-    }
-
     setBusy(true)
-    setSteps({ parse: 'running', save: 'pending', tailor: 'pending', interview: 'pending' })
+    setSteps(IDLE)
     try {
-      // Step 1 — parse posting into structured fields
-      const parsed = await generateJson<{ title: string; company: string; location: string }>(
+      const finalJob = await runOneTapPipeline({
         settings,
-        JOB_PARSE_SYSTEM,
-        posting.slice(0, 6000),
-      )
-      setStep('parse', 'done')
-
-      // Step 2 — save to tracker immediately so nothing is lost if a later step fails
-      setStep('save', 'running')
-      const job: Job = {
-        id: uid(),
-        title: parsed.title || 'Untitled role',
-        company: parsed.company,
-        location: parsed.location,
-        url: url.trim(),
-        description: posting.trim(),
-        status: 'saved',
-        notes: '',
-        createdAt: Date.now(),
-      }
-      onJobsChange((prev) => [job, ...prev])
-      setStep('save', 'done')
-
-      // Steps 3 + 4 — tailor documents and interview prep run in parallel
-      setStep('tailor', 'running')
-      setStep('interview', 'running')
-      const context = `CANDIDATE NAME: ${profile.fullName || 'not given'}\n\nMASTER RESUME:\n${profile.resumeText}\n\nJOB DESCRIPTION:\n${posting}`
-      const [tailorRes, prepRes] = await Promise.allSettled([
-        generateJson<Omit<TailorResult, 'generatedAt'>>(settings, TAILOR_SYSTEM, context),
-        generateJson<{ questions: InterviewQuestion[] }>(
-          settings,
-          INTERVIEW_QUESTIONS_SYSTEM,
-          `ROLE: ${parsed.title} at ${parsed.company}\nJOB DESCRIPTION:\n${posting.slice(0, 4000)}\nCANDIDATE RESUME:\n${profile.resumeText.slice(0, 4000)}`,
-        ),
-      ])
-
-      const patch: Partial<Job> = {}
-      if (tailorRes.status === 'fulfilled') {
-        patch.tailorResult = { ...tailorRes.value, generatedAt: Date.now() }
-        setStep('tailor', 'done')
-      } else {
-        setStep('tailor', 'failed')
-      }
-      if (prepRes.status === 'fulfilled') {
-        patch.interviewPrep = prepRes.value.questions
-        setStep('interview', 'done')
-      } else {
-        setStep('interview', 'failed')
-      }
-      const finalJob = { ...job, ...patch }
-      onJobsChange((prev) => prev.map((j) => (j.id === job.id ? finalJob : j)))
-
-      if (tailorRes.status === 'rejected' && prepRes.status === 'rejected') {
-        throw tailorRes.reason
-      }
+        profile,
+        posting,
+        url,
+        existingJobs: jobs,
+        addJob: (job) => onJobsChange((prev) => [job, ...prev]),
+        patchJob: (id, patch) => onJobsChange((prev) => prev.map((j) => (j.id === id ? { ...j, ...patch } : j))),
+        onStep: setStep,
+      })
       setDoneJob(finalJob)
       setPosting('')
       setUrl('')
@@ -191,7 +121,7 @@ export default function OneTapScreen({
           onChange={(e) => setPosting(e.target.value)}
         />
         <input
-          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
           placeholder="Posting URL (optional — powers the duplicate guard)"
           value={urlInput}
           onChange={(e) => setUrl(e.target.value)}

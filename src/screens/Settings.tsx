@@ -1,7 +1,13 @@
 import { useRef, useState } from 'react'
 import type { Provider, Settings } from '../types'
-import { DEFAULT_MODELS, generateText } from '../lib/llm'
+import { DEFAULT_MODELS, generateText, isKeyless } from '../lib/llm'
 import { Badge, Button, Card, Field, SectionTitle, Spinner, inputCls } from '../components/ui'
+
+const PROVIDERS: { key: Provider; name: string; blurb: string }[] = [
+  { key: 'puter', name: 'Free — no key', blurb: 'Zero setup. Sign into a free Puter account in a popup on first use.' },
+  { key: 'gemini', name: 'Google Gemini', blurb: 'Bring your own free API key — full control of your quota.' },
+  { key: 'anthropic', name: 'Anthropic Claude', blurb: 'Bring your own key — highest quality writing.' },
+]
 
 export default function SettingsScreen({
   settings,
@@ -68,57 +74,68 @@ export default function SettingsScreen({
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <SectionTitle sub="Bring your own AI key. It is stored only in this browser, sent only to the AI provider you choose, and never touches any other server. That's how this stays free.">
+      <SectionTitle sub="AI runs free by default with zero setup. Power users can plug in their own Gemini or Claude key instead — keys are stored only in this browser and sent only to that provider.">
         Settings
       </SectionTitle>
 
       <Card className="space-y-4">
         <Field label="AI provider">
-          <div className="flex gap-2">
-            {(['gemini', 'anthropic'] as const).map((p) => (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {PROVIDERS.map((p) => (
               <button
-                key={p}
+                key={p.key}
                 type="button"
-                onClick={() => setProvider(p)}
-                className={`flex-1 rounded-lg border px-4 py-3 text-left text-sm transition-colors ${
-                  settings.provider === p
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                onClick={() => setProvider(p.key)}
+                className={`flex-1 rounded-xl border px-4 py-3 text-left text-sm transition-colors ${
+                  settings.provider === p.key
+                    ? 'border-violet-500 bg-violet-50 text-violet-950'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                 }`}
               >
                 <span className="block font-semibold">
-                  {p === 'gemini' ? 'Google Gemini' : 'Anthropic Claude'}
+                  {p.name} {p.key === 'puter' && <span className="ml-1 rounded-full bg-violet-600 px-2 py-0.5 text-[10px] font-bold text-white">DEFAULT</span>}
                 </span>
-                <span className="mt-0.5 block text-xs text-slate-500">
-                  {p === 'gemini' ? 'Free tier available — recommended' : 'Highest quality writing'}
-                </span>
+                <span className="mt-0.5 block text-xs text-slate-500">{p.blurb}</span>
               </button>
             ))}
           </div>
         </Field>
 
-        <Field label="API key">
-          <input
-            type="password"
-            className={inputCls}
-            placeholder={settings.provider === 'gemini' ? 'AIza…' : 'sk-ant-…'}
-            value={settings.apiKey}
-            onChange={(e) => onChange({ ...settings, apiKey: e.target.value })}
-          />
-        </Field>
-
-        <Field label="Model">
-          <input
-            className={inputCls}
-            value={settings.model}
-            onChange={(e) => onChange({ ...settings, model: e.target.value })}
-          />
-        </Field>
+        {!isKeyless(settings.provider) && (
+          <>
+            <Field label="API key">
+              <input
+                type="password"
+                className={inputCls}
+                placeholder={settings.provider === 'gemini' ? 'AIza…' : 'sk-ant-…'}
+                value={settings.apiKey}
+                onChange={(e) => onChange({ ...settings, apiKey: e.target.value })}
+              />
+            </Field>
+            <Field label="Model">
+              <input
+                className={inputCls}
+                value={settings.model}
+                onChange={(e) => onChange({ ...settings, model: e.target.value })}
+              />
+            </Field>
+          </>
+        )}
 
         <div className="flex flex-wrap items-center gap-3">
-          {settings.apiKey ? <Badge tone="green">Key saved locally</Badge> : <Badge tone="amber">No key yet</Badge>}
-          <Button variant="secondary" onClick={testKey} disabled={!settings.apiKey || testState === 'testing'}>
-            Test key
+          {isKeyless(settings.provider) ? (
+            <Badge tone="green">No key needed — you're set</Badge>
+          ) : settings.apiKey ? (
+            <Badge tone="green">Key saved locally</Badge>
+          ) : (
+            <Badge tone="amber">No key yet</Badge>
+          )}
+          <Button
+            variant="secondary"
+            onClick={testKey}
+            disabled={(!isKeyless(settings.provider) && !settings.apiKey) || testState === 'testing'}
+          >
+            Test connection
           </Button>
           {testState === 'testing' && <Spinner label="Testing…" />}
           {testState === 'ok' && <Badge tone="green">✓ {testMessage}</Badge>}
@@ -126,26 +143,28 @@ export default function SettingsScreen({
         </div>
       </Card>
 
-      <Card>
-        <h3 className="mb-2 text-sm font-semibold text-slate-900">How to get a free key</h3>
-        <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-600">
-          <li>
-            <span className="font-medium">Gemini (free):</span> go to{' '}
-            <a className="text-emerald-700 underline" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
-              aistudio.google.com/apikey
-            </a>
-            , sign in with Google, click “Create API key”.
-          </li>
-          <li>
-            <span className="font-medium">Claude:</span> go to{' '}
-            <a className="text-emerald-700 underline" href="https://console.anthropic.com/" target="_blank" rel="noreferrer">
-              console.anthropic.com
-            </a>{' '}
-            → API keys.
-          </li>
-          <li>Paste the key above. Done — everything else in the app now works.</li>
-        </ol>
-      </Card>
+      {!isKeyless(settings.provider) && (
+        <Card>
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">How to get a free key</h3>
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-slate-600">
+            <li>
+              <span className="font-medium">Gemini (free):</span> go to{' '}
+              <a className="text-violet-700 underline" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
+                aistudio.google.com/apikey
+              </a>
+              , sign in with Google, click “Create API key”.
+            </li>
+            <li>
+              <span className="font-medium">Claude:</span> go to{' '}
+              <a className="text-violet-700 underline" href="https://console.anthropic.com/" target="_blank" rel="noreferrer">
+                console.anthropic.com
+              </a>{' '}
+              → API keys.
+            </li>
+            <li>Paste the key above. Done — everything else in the app now works.</li>
+          </ol>
+        </Card>
+      )}
 
       <Card className="space-y-3">
         <h3 className="text-sm font-semibold text-slate-900">Your data</h3>
