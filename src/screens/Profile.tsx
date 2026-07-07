@@ -1,18 +1,52 @@
 import { useRef, useState } from 'react'
-import type { Profile } from '../types'
+import type { Profile, Settings } from '../types'
 import { extractPdfText } from '../lib/pdf'
+import { generateJson } from '../lib/llm'
+import { RESUME_DOCTOR_SYSTEM } from '../lib/prompts'
 import { Badge, Button, Card, ErrorNote, Field, SectionTitle, Spinner, inputCls, textareaCls } from '../components/ui'
 
+interface DoctorReport {
+  score: number
+  issues: { severity: 'high' | 'medium' | 'low'; issue: string; fix: string }[]
+  improved_resume: string
+  summary: string
+}
+
 export default function ProfileScreen({
+  settings,
   profile,
   onChange,
 }: {
+  settings: Settings
   profile: Profile
   onChange: (p: Profile) => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [doctor, setDoctor] = useState<DoctorReport | null>(null)
+  const [doctorBusy, setDoctorBusy] = useState(false)
+  const [applied, setApplied] = useState(false)
+
+  const runDoctor = async () => {
+    if (!profile.resumeText.trim()) return
+    setDoctorBusy(true)
+    setDoctor(null)
+    setApplied(false)
+    setError('')
+    try {
+      const report = await generateJson<DoctorReport>(
+        settings,
+        RESUME_DOCTOR_SYSTEM,
+        `MASTER RESUME:\n${profile.resumeText}`,
+      )
+      setDoctor(report)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Health check failed.')
+    } finally {
+      setDoctorBusy(false)
+    }
+  }
 
   const handleFile = async (file: File) => {
     setError('')
@@ -84,6 +118,67 @@ export default function ProfileScreen({
             <Badge tone="amber">Empty — add your resume to unlock everything else</Badge>
           )}
         </div>
+      </Card>
+
+      <Card className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">🩺 Resume Doctor</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Audits your master resume like a senior reviewer: honest score, prioritized issues, and a
+              fixed version — stronger verbs, impact-first bullets, metric placeholders where numbers are
+              missing. Never invents facts.
+            </p>
+          </div>
+          <Button onClick={runDoctor} disabled={doctorBusy || !profile.resumeText.trim()}>
+            {doctorBusy ? 'Examining…' : doctor ? 'Re-examine' : 'Run health check'}
+          </Button>
+        </div>
+        {doctorBusy && <Spinner label="Reading your resume like a recruiter would (15–30s)…" />}
+        {doctor && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span
+                className={`text-3xl font-extrabold ${doctor.score >= 70 ? 'text-emerald-600' : doctor.score >= 45 ? 'text-amber-600' : 'text-red-600'}`}
+              >
+                {doctor.score}
+              </span>
+              <p className="text-sm text-slate-600">{doctor.summary}</p>
+            </div>
+            <ul className="space-y-2">
+              {doctor.issues.map((iss, i) => (
+                <li key={i} className="flex gap-2 text-sm">
+                  <Badge tone={iss.severity === 'high' ? 'red' : iss.severity === 'medium' ? 'amber' : 'slate'}>
+                    {iss.severity}
+                  </Badge>
+                  <span className="text-slate-700">
+                    {iss.issue} <span className="text-slate-500">→ {iss.fix}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div>
+              <h4 className="mb-1 text-sm font-semibold text-slate-900">Improved version</h4>
+              <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 font-mono text-xs leading-relaxed text-slate-800">
+                {doctor.improved_resume}
+              </pre>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => {
+                  onChange({ ...profile, resumeText: doctor.improved_resume, updatedAt: Date.now() })
+                  setApplied(true)
+                }}
+                disabled={applied}
+              >
+                {applied ? '✓ Applied to master resume' : 'Use improved version'}
+              </Button>
+              <span className="text-xs text-slate-400">
+                Search for “[add metric” afterwards and fill in your real numbers.
+              </span>
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card className="space-y-4">

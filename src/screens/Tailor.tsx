@@ -4,6 +4,7 @@ import type { Job, Profile, Settings, TailorResult } from '../types'
 import { generateJson, generateText } from '../lib/llm'
 import { SCREENING_ANSWER_SYSTEM, TAILOR_SYSTEM } from '../lib/prompts'
 import { downloadResumeDocx, printResumePdf } from '../lib/resumeExport'
+import { buildMagicFillBookmarklet } from '../lib/formFill'
 import { Badge, Button, Card, ErrorNote, Field, SectionTitle, Spinner, inputCls, textareaCls } from '../components/ui'
 
 type TailorJson = Omit<TailorResult, 'generatedAt'>
@@ -336,6 +337,33 @@ export default function TailorScreen({
               .map(([label, value]) => (
                 <CopyButton key={label} text={value!} label={`Copy ${label.toLowerCase()}`} />
               ))}
+          </div>
+          <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-sm font-semibold text-violet-900">✨ Magic Fill — fill the whole form in one click</span>
+                <p className="mt-0.5 text-xs text-violet-700">
+                  Drag this button to your bookmarks bar once. Then on any application page (Workday,
+                  Greenhouse, Naukri…) click it — your details fill in automatically, highlighted purple
+                  for review. Your data lives inside the bookmark, never on a server.
+                </p>
+              </div>
+              <a
+                href={buildMagicFillBookmarklet(profile)}
+                onClick={(e) => e.preventDefault()}
+                draggable
+                className="cursor-grab rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-violet-600/30"
+                title="Drag me to your bookmarks bar"
+              >
+                ✨ Magic Fill
+              </a>
+            </div>
+            {(!profile.email || !profile.phone) && (
+              <p className="mt-2 text-xs text-amber-700">
+                Fill your details in Profile first — the bookmark carries whatever is saved when you drag it
+                (re-drag after changes).
+              </p>
+            )}
           </div>
         </Card>
       )}

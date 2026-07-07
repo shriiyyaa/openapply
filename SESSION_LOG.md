@@ -1,5 +1,12 @@
 # Session Log
 
+## 2026-07-08 (v2.2 — accuracy + optimization pass)
+
+- **✨ Magic Fill** (`lib/formFill.ts`): bookmarklet form-filler for employer portals — user drags it to the bookmarks bar from the Apply Assist card; on any application page it heuristically fills name/email/phone/LinkedIn/portfolio/salary/notice via label+attribute regex matching and native-setter events (works on React/Angular forms), highlights filled fields purple, alerts count. Data embedded in the bookmark, never on a server. Re-drag after profile changes. Solves the last-mile without a browser extension.
+- **🩺 Resume Doctor** (Profile): audits master resume — honest 0-100 score, 5-10 prioritized issues, grounded improved rewrite with "[add metric: …]" placeholders instead of invented numbers, one-click apply.
+- **Engine**: `generateJson` auto-retries once on malformed JSON with a firmer instruction; Gemini/Claude fetches get a 90s AbortController timeout; pdfjs is now dynamically imported — main bundle 729KB → 320KB (pdf 425KB + docx 350KB load on demand).
+- Magic Fill is heuristic — it won't catch every exotic form field; filled fields are highlighted for human review before submit (by design).
+
 ## 2026-07-07 (v2.1 — "Priya audit" fixes)
 
 Ran a persona audit (tired 8-month job seeker) → five gaps → all fixed:

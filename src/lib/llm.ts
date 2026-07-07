@@ -84,9 +84,21 @@ async function callPuter(settings: Settings, system: string, user: string): Prom
   return text
 }
 
+/** fetch with a hard deadline — a hung provider should fail loudly, not spin forever. */
+function fetchWithTimeout(url: string, init: RequestInit, ms = 90_000): Promise<Response> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), ms)
+  return fetch(url, { ...init, signal: ctrl.signal })
+    .catch((e) => {
+      if (ctrl.signal.aborted) throw new LlmError('The AI request timed out (90s) — try again.')
+      throw e
+    })
+    .finally(() => clearTimeout(timer))
+}
+
 async function callGemini(settings: Settings, system: string, user: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent?key=${encodeURIComponent(settings.apiKey)}`
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -108,7 +120,7 @@ async function callGemini(settings: Settings, system: string, user: string): Pro
 }
 
 async function callAnthropic(settings: Settings, system: string, user: string): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -144,13 +156,7 @@ export function generateText(settings: Settings, system: string, user: string): 
     : callAnthropic(settings, system, user)
 }
 
-/** Ask for JSON and parse it, tolerating markdown code fences and stray prose. */
-export async function generateJson<T>(settings: Settings, system: string, user: string): Promise<T> {
-  const raw = await generateText(
-    settings,
-    system + '\n\nRespond with ONLY valid JSON. No markdown fences, no commentary.',
-    user,
-  )
+function tryParseJson<T>(raw: string): T | null {
   const cleaned = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
@@ -160,7 +166,34 @@ export async function generateJson<T>(settings: Settings, system: string, user: 
   } catch {
     // Fall back to the outermost JSON object/array in the response.
     const match = cleaned.match(/[[{][\s\S]*[\]}]/)
-    if (match) return JSON.parse(match[0]) as T
-    throw new LlmError('The model did not return valid JSON. Try again.')
+    if (match) {
+      try {
+        return JSON.parse(match[0]) as T
+      } catch {
+        return null
+      }
+    }
+    return null
   }
+}
+
+/**
+ * Ask for JSON and parse it, tolerating markdown fences and stray prose.
+ * A malformed response gets one automatic retry with a firmer instruction
+ * before the user ever sees an error.
+ */
+export async function generateJson<T>(settings: Settings, system: string, user: string): Promise<T> {
+  const sys = system + '\n\nRespond with ONLY valid JSON. No markdown fences, no commentary.'
+  const first = await generateText(settings, sys, user)
+  const parsed = tryParseJson<T>(first)
+  if (parsed !== null) return parsed
+
+  const retry = await generateText(
+    settings,
+    sys + '\n\nCRITICAL: your previous attempt was not valid JSON. Output raw JSON only, starting with { or [.',
+    user,
+  )
+  const reparsed = tryParseJson<T>(retry)
+  if (reparsed !== null) return reparsed
+  throw new LlmError('The model did not return valid JSON after a retry. Try again.')
 }

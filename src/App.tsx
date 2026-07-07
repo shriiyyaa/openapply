@@ -161,7 +161,7 @@ export default function App() {
             onPrefillConsumed={() => setOneTapPrefill(null)}
           />
         )}
-        {tab === 'profile' && <ProfileScreen profile={profile} onChange={setProfile} />}
+        {tab === 'profile' && <ProfileScreen settings={settings} profile={profile} onChange={setProfile} />}
         {tab === 'tailor' && (
           <TailorScreen
             settings={settings}
