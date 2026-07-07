@@ -8,7 +8,7 @@
 
 export interface DiscoveredJob {
   id: string
-  source: 'remotive' | 'arbeitnow' | 'themuse' | 'remoteok' | 'jobicy'
+  source: 'remotive' | 'arbeitnow' | 'themuse' | 'remoteok' | 'jobicy' | 'jsearch'
   title: string
   company: string
   location: string
@@ -205,14 +205,62 @@ export function scoreFit(resumeText: string, job: DiscoveredJob): number {
   return Math.round((hits / uniqueJobWords.length) * 100)
 }
 
-export async function searchJobs(query: string, resumeText: string): Promise<DiscoveredJob[]> {
-  const results = await Promise.allSettled([
+/**
+ * JSearch (RapidAPI, free tier) — the coverage fix for non-remote/non-tech seekers.
+ * It queries Google for Jobs, which aggregates LinkedIn, Indeed, Naukri, Glassdoor,
+ * company career portals — every industry, every city worldwide. Needs the user's
+ * free RapidAPI key (BYO, like the AI keys).
+ */
+async function searchJSearch(query: string, location: string, key: string): Promise<DiscoveredJob[]> {
+  const q = location.trim() ? `${query} in ${location}` : query
+  const res = await fetch(
+    `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(q)}&num_pages=1`,
+    { headers: { 'x-rapidapi-key': key, 'x-rapidapi-host': 'jsearch.p.rapidapi.com' } },
+  )
+  if (!res.ok) throw new Error(`JSearch ${res.status}`)
+  const data = await res.json()
+  return (data.data ?? []).map(
+    (j: {
+      job_id: string
+      job_title: string
+      employer_name: string
+      job_city?: string
+      job_state?: string
+      job_country?: string
+      job_is_remote?: boolean
+      job_apply_link: string
+      job_description: string
+      job_posted_at_timestamp?: number
+    }) => ({
+      id: `jsearch-${j.job_id}`,
+      source: 'jsearch' as const,
+      title: j.job_title,
+      company: j.employer_name ?? '',
+      location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', ') || '—',
+      remote: !!j.job_is_remote,
+      url: j.job_apply_link ?? '',
+      description: (j.job_description ?? '').replace(/\s{2,}/g, ' ').slice(0, 6000),
+      postedAt: (j.job_posted_at_timestamp ?? 0) * 1000,
+    }),
+  )
+}
+
+export async function searchJobs(
+  query: string,
+  resumeText: string,
+  opts?: { location?: string; rapidApiKey?: string },
+): Promise<DiscoveredJob[]> {
+  const sources = [
     searchRemotive(query),
     searchArbeitnow(query),
     searchTheMuse(query),
     searchRemoteOk(query),
     searchJobicy(query),
-  ])
+  ]
+  if (opts?.rapidApiKey?.trim()) {
+    sources.push(searchJSearch(query, opts.location ?? '', opts.rapidApiKey.trim()))
+  }
+  const results = await Promise.allSettled(sources)
   const jobs = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
   if (jobs.length === 0 && results.every((r) => r.status === 'rejected')) {
     throw new Error('All job sources are unreachable right now — try again in a minute.')

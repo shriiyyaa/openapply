@@ -52,6 +52,17 @@ ${GROUNDING_RULES}
 
 Write the answer in first person, in the candidate's plausible voice: specific, concise (100-180 words unless the question demands otherwise), no clichés, referencing real experience from the resume and real details from the job description. Respond with ONLY the answer text.`
 
+export const OUTREACH_SYSTEM = `You write networking messages for a job seeker. Most jobs are won through people, not portals — these messages get the candidate a human on their side.
+
+${GROUNDING_RULES}
+
+Given a job and the candidate's resume, write all three:
+1. "linkedin_dm": a LinkedIn message to the likely hiring manager for this role (under 80 words — short enough to read on a phone). Specific to the role, one genuine hook from the candidate's real background, a soft ask ("would you be open to a quick chat?"). No "Dear Sir/Madam", no desperation.
+2. "referral_request": a message to a friend/former colleague/alum who works at this company, asking for a referral. Warm, low-pressure, makes it easy to say yes (offer to send resume + posting link).
+3. "recruiter_email": a short email to a recruiter at the company. Subject line first ("Subject: …"), under 120 words, states the exact role, one line of genuine fit, resume attached.
+
+Respond as JSON with exactly those three string keys.`
+
 export const FOLLOWUP_EMAIL_SYSTEM = `You write short, professional job-search emails for a candidate.
 
 ${GROUNDING_RULES}

@@ -2,7 +2,14 @@ import { useState } from 'react'
 import type { Job, JobStatus, Profile, Settings } from '../types'
 import { uid } from '../lib/storage'
 import { generateJson, generateText } from '../lib/llm'
-import { FOLLOWUP_EMAIL_SYSTEM, JOB_PARSE_SYSTEM } from '../lib/prompts'
+import { FOLLOWUP_EMAIL_SYSTEM, JOB_PARSE_SYSTEM, OUTREACH_SYSTEM } from '../lib/prompts'
+import { exportAllData, load, save } from '../lib/storage'
+
+interface OutreachKit {
+  linkedin_dm: string
+  referral_request: string
+  recruiter_email: string
+}
 import { Badge, Button, Card, ErrorNote, Field, SectionTitle, Spinner, inputCls, textareaCls } from '../components/ui'
 
 const STATUSES: { value: JobStatus; label: string; tone: 'slate' | 'blue' | 'amber' | 'green' | 'red' }[] = [
@@ -35,6 +42,27 @@ export default function JobsScreen({
   const [filter, setFilter] = useState<JobStatus | 'all'>('all')
   const [email, setEmail] = useState<{ jobId: string; text: string } | null>(null)
   const [emailBusy, setEmailBusy] = useState('')
+  const [outreach, setOutreach] = useState<{ jobId: string; kit: OutreachKit } | null>(null)
+  const [outreachBusy, setOutreachBusy] = useState('')
+  const [backupDismissed, setBackupDismissed] = useState(() => load('backupNudgeDismissed', false))
+
+  const writeOutreach = async (job: Job) => {
+    setOutreachBusy(job.id)
+    setOutreach(null)
+    setError('')
+    try {
+      const kit = await generateJson<OutreachKit>(
+        settings,
+        OUTREACH_SYSTEM,
+        `JOB: ${job.title} at ${job.company}\nJOB DESCRIPTION:\n${job.description.slice(0, 3000)}\n\nCANDIDATE RESUME:\n${profile.resumeText.slice(0, 3000)}`,
+      )
+      setOutreach({ jobId: job.id, kit })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not write outreach messages.')
+    } finally {
+      setOutreachBusy('')
+    }
+  }
 
   const writeFollowUp = async (job: Job) => {
     setEmailBusy(job.id)
@@ -153,6 +181,23 @@ export default function JobsScreen({
         </Card>
       )}
 
+      {jobs.length >= 5 && !backupDismissed && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+          <span className="text-sm text-amber-800">
+            {jobs.length} applications tracked — all stored only in this browser. Back them up so a
+            cleared cache can't erase your search history.
+          </span>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={exportAllData}>
+              Download backup
+            </Button>
+            <Button variant="ghost" onClick={() => { setBackupDismissed(true); save('backupNudgeDismissed', true) }}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setFilter('all')}
@@ -219,6 +264,9 @@ export default function JobsScreen({
                       {emailBusy === job.id ? '…' : '✉ Follow-up'}
                     </Button>
                   )}
+                  <Button variant="secondary" onClick={() => writeOutreach(job)} disabled={outreachBusy === job.id}>
+                    {outreachBusy === job.id ? '…' : '🤝 Outreach'}
+                  </Button>
                   <Button variant="danger" onClick={() => remove(job.id)}>✕</Button>
                 </div>
               </div>
@@ -230,6 +278,33 @@ export default function JobsScreen({
                   <Button variant="secondary" onClick={() => navigator.clipboard.writeText(email.text)}>
                     Copy email
                   </Button>
+                </div>
+              )}
+              {outreach?.jobId === job.id && (
+                <div className="mt-3 space-y-3">
+                  <p className="text-xs text-slate-500">
+                    Most jobs are won through people, not portals. Three ways in — find the person on
+                    LinkedIn ("{job.company} recruiter" / "hiring manager") and send:
+                  </p>
+                  {(
+                    [
+                      ['LinkedIn DM to the hiring manager', outreach.kit.linkedin_dm],
+                      ['Referral ask (someone you know there)', outreach.kit.referral_request],
+                      ['Email to a recruiter', outreach.kit.recruiter_email],
+                    ] as const
+                  ).map(([label, text]) => (
+                    <div key={label} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-700">{label}</span>
+                        <Button variant="ghost" onClick={() => navigator.clipboard.writeText(text)}>
+                          Copy
+                        </Button>
+                      </div>
+                      <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm leading-relaxed text-slate-800">
+                        {text}
+                      </pre>
+                    </div>
+                  ))}
                 </div>
               )}
             </Card>

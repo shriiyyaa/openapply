@@ -85,6 +85,37 @@ export default function ProfileScreen({
           )}
         </div>
       </Card>
+
+      <Card className="space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Apply Assist details (optional)</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Employer portals ask the same fields every single time. Fill these once — the Tailor screen
+            gives you one-click copy buttons for each while you're inside a Workday/Greenhouse form.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {(
+            [
+              ['email', 'Email', 'you@example.com'],
+              ['phone', 'Phone', '+91 …'],
+              ['linkedin', 'LinkedIn URL', 'linkedin.com/in/…'],
+              ['portfolio', 'Portfolio / website', 'https://…'],
+              ['salaryExpectation', 'Salary expectation', 'e.g. 12 LPA / $85,000'],
+              ['noticePeriod', 'Notice period / start date', 'e.g. 30 days / immediately'],
+            ] as const
+          ).map(([key, label, placeholder]) => (
+            <Field key={key} label={label}>
+              <input
+                className={inputCls}
+                placeholder={placeholder}
+                value={profile[key] ?? ''}
+                onChange={(e) => onChange({ ...profile, [key]: e.target.value, updatedAt: Date.now() })}
+              />
+            </Field>
+          ))}
+        </div>
+      </Card>
     </div>
   )
 }

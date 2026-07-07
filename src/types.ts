@@ -4,6 +4,8 @@ export interface Settings {
   provider: Provider
   apiKey: string
   model: string
+  /** Optional free RapidAPI key — unlocks JSearch (Google for Jobs: every board, every city). */
+  rapidApiKey?: string
 }
 
 export interface Profile {
@@ -11,6 +13,13 @@ export interface Profile {
   resumeText: string
   fullName: string
   updatedAt: number
+  // Apply Assist: the fields employer portals always ask for, one copy-click away.
+  email?: string
+  phone?: string
+  linkedin?: string
+  portfolio?: string
+  salaryExpectation?: string
+  noticePeriod?: string
 }
 
 export type JobStatus = 'saved' | 'applied' | 'interviewing' | 'offer' | 'rejected'

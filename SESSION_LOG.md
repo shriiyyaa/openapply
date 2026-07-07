@@ -1,5 +1,15 @@
 # Session Log
 
+## 2026-07-07 (v2.1 — "Priya audit" fixes)
+
+Ran a persona audit (tired 8-month job seeker) → five gaps → all fixed:
+- **Her jobs aren't on our boards** → JSearch source via BYO free RapidAPI key (CORS verified from our origin; Adzuna tested and rejected — no CORS). JSearch = Google for Jobs = LinkedIn/Indeed/Naukri/local, any city. Settings has a guided "Search every job, everywhere" card; Search shows an unlock hint when keyless.
+- **Employer portal last-mile** → Apply Assist: contact fields on Profile (email/phone/LinkedIn/portfolio/salary/notice), copy-chip panel in Tailor incl. cover letter, for use inside Workday/Greenhouse forms.
+- **Portals aren't how jobs are won** → 🤝 Outreach button per tracked job: one call generates LinkedIn DM to hiring manager + referral ask + recruiter email (grounded, OUTREACH_SYSTEM prompt).
+- **Puter scam-radar** → provider blurb now explains the popup ("free account, ~30s, no card ever").
+- **Data fragility** → backup nudge banner in Jobs at 5+ tracked (dismissable, persisted); export moved to lib/storage `exportAllData`, now also strips rapidApiKey.
+- Also: missing ATS keywords now framed as an upskill map.
+
 ## 2026-07-07 (v2 overhaul) — user feedback: didn't like v1 on all four axes
 
 User selected all four pain points: setup friction, plain looks, not automatic enough, weak discovery. Shipped in response:

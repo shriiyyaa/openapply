@@ -192,6 +192,12 @@ export default function TailorScreen({
                 <Badge key={k} tone="red">✗ {k}</Badge>
               ))}
             </div>
+            {result.ats.missing_keywords.length > 0 && (
+              <p className="text-xs text-slate-400">
+                The ✗ list doubles as your fastest upskill map — a short course or certificate in one of
+                these often beats 50 more applications.
+              </p>
+            )}
           </Card>
 
           <Card>
@@ -302,6 +308,36 @@ export default function TailorScreen({
             )}
           </Card>
         </>
+      )}
+
+      {result && (
+        <Card className="space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Apply Assist — for the employer's form</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Inside a Workday/Greenhouse/Naukri form? Everything they'll ask for, one click each.
+              {!profile.email && !profile.phone && ' (Fill your details once in Profile to unlock more chips.)'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ['Name', profile.fullName],
+                ['Email', profile.email],
+                ['Phone', profile.phone],
+                ['LinkedIn', profile.linkedin],
+                ['Portfolio', profile.portfolio],
+                ['Salary', profile.salaryExpectation],
+                ['Notice period', profile.noticePeriod],
+                ['Cover letter', result.cover_letter],
+              ] as const
+            )
+              .filter(([, v]) => v?.trim())
+              .map(([label, value]) => (
+                <CopyButton key={label} text={value!} label={`Copy ${label.toLowerCase()}`} />
+              ))}
+          </div>
+        </Card>
       )}
 
       {jobDescription.trim() && (

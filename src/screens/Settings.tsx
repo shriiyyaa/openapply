@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import type { Provider, Settings } from '../types'
 import { DEFAULT_MODELS, generateText, isKeyless } from '../lib/llm'
+import { exportAllData } from '../lib/storage'
 import { Badge, Button, Card, Field, SectionTitle, Spinner, inputCls } from '../components/ui'
 
 const PROVIDERS: { key: Provider; name: string; blurb: string }[] = [
-  { key: 'puter', name: 'Free — no key', blurb: 'Zero setup. Sign into a free Puter account in a popup on first use.' },
+  { key: 'puter', name: 'Free — no key', blurb: 'Zero setup. First use opens a popup to create a free Puter account — ~30 seconds, no card, ever.' },
   { key: 'gemini', name: 'Google Gemini', blurb: 'Bring your own free API key — full control of your quota.' },
   { key: 'anthropic', name: 'Anthropic Claude', blurb: 'Bring your own key — highest quality writing.' },
 ]
@@ -36,32 +37,17 @@ export default function SettingsScreen({
     }
   }
 
-  const exportData = () => {
-    const data: Record<string, unknown> = {}
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith('openapply:')) data[key] = JSON.parse(localStorage.getItem(key)!)
-    }
-    // The API key stays out of exports — a shared backup file must not leak it.
-    const s = data['openapply:settings'] as Record<string, unknown> | undefined
-    if (s) s.apiKey = ''
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
-    a.download = `openapply-backup-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
-
   const importData = async (file: File) => {
     try {
       const data = JSON.parse(await file.text()) as Record<string, unknown>
       const keys = Object.keys(data).filter((k) => k.startsWith('openapply:'))
       if (keys.length === 0) throw new Error('Not an OpenApply backup file.')
       for (const k of keys) {
-        // Keep the current key if the backup's is blank (exports strip it).
+        // Keep the current keys if the backup's are blank (exports strip them).
         if (k === 'openapply:settings') {
           const incoming = data[k] as Settings
           if (!incoming.apiKey) incoming.apiKey = settings.apiKey
+          if (!incoming.rapidApiKey) incoming.rapidApiKey = settings.rapidApiKey
         }
         localStorage.setItem(k, JSON.stringify(data[k]))
       }
@@ -167,6 +153,43 @@ export default function SettingsScreen({
       )}
 
       <Card className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Search every job, everywhere (optional)</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            The built-in boards skew remote-friendly. Add a <span className="font-medium">free RapidAPI key</span> and
+            Find jobs also searches <span className="font-medium">Google for Jobs</span> — which aggregates LinkedIn,
+            Indeed, Naukri, Glassdoor, and company career sites, for any role in any city worldwide.
+          </p>
+        </div>
+        <Field label="RapidAPI key (free)">
+          <input
+            type="password"
+            className={inputCls}
+            placeholder="Paste your RapidAPI key…"
+            value={settings.rapidApiKey ?? ''}
+            onChange={(e) => onChange({ ...settings, rapidApiKey: e.target.value })}
+          />
+        </Field>
+        <ol className="list-decimal space-y-1 pl-5 text-xs text-slate-500">
+          <li>
+            Sign up free at{' '}
+            <a className="text-violet-700 underline" href="https://rapidapi.com/auth/sign-up" target="_blank" rel="noreferrer">
+              rapidapi.com
+            </a>
+          </li>
+          <li>
+            Open the{' '}
+            <a className="text-violet-700 underline" href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch" target="_blank" rel="noreferrer">
+              JSearch API page
+            </a>{' '}
+            and subscribe to the <span className="font-medium">Basic (free)</span> plan
+          </li>
+          <li>Copy your key ("X-RapidAPI-Key") and paste it above</li>
+        </ol>
+        {settings.rapidApiKey?.trim() && <Badge tone="green">Worldwide search unlocked</Badge>}
+      </Card>
+
+      <Card className="space-y-3">
         <h3 className="text-sm font-semibold text-slate-900">Your data</h3>
         <p className="text-sm text-slate-600">
           Your resume, jobs, and interview practice live entirely in this browser (localStorage).
@@ -175,7 +198,7 @@ export default function SettingsScreen({
           switching machines.
         </p>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={exportData}>Export all data</Button>
+          <Button variant="secondary" onClick={exportAllData}>Export all data</Button>
           <input
             ref={importRef}
             type="file"

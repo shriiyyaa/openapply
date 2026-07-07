@@ -47,7 +47,12 @@ export default function SearchScreen({
     setSelected([])
     setBulk(null)
     try {
-      setResults(await searchJobs(query.trim(), profile.resumeText))
+      setResults(
+        await searchJobs(query.trim(), profile.resumeText, {
+          location,
+          rapidApiKey: settings.rapidApiKey,
+        }),
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Search failed.')
     } finally {
@@ -142,6 +147,13 @@ export default function SearchScreen({
         {!profile.resumeText.trim() && (
           <p className="text-xs text-amber-700">
             Tip: add your resume in Profile first — results get ranked by real fit to you.
+          </p>
+        )}
+        {!settings.rapidApiKey?.trim() && (
+          <p className="text-xs text-slate-500">
+            Searching remote-friendly boards. Want <span className="font-medium">every job in your city</span> —
+            LinkedIn, Indeed, Naukri, local hospitals and shops? Add a free RapidAPI key in Settings to unlock
+            worldwide search via Google for Jobs.
           </p>
         )}
         {error && <ErrorNote message={error} />}
